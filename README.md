@@ -102,19 +102,6 @@ python main.py help
 python main.py 설정파일.json
 ```
 
-또는 exe 파일을 사용하는 경우:
-
-```bash
-# GUI 모드로 실행
-kapt_crawler.exe
-
-# 도움말 표시
-kapt_crawler.exe help
-
-# 설정 파일을 사용하여 CLI 모드로 크롤링 실행
-kapt_crawler.exe 설정파일.json
-```
-
 #### JSON 설정 파일 구조
 
 CLI 모드에서는 다음 형식의 JSON 설정 파일을 사용합니다:
