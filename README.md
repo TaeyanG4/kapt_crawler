@@ -23,6 +23,7 @@ K-APT 크롤러는 [한국 공동주택관리정보시스템(K-APT)](https://www
   - 설정 파일을 이용한 일괄 크롤링 기능
   - 선택적 상세 정보 크롤링으로 필요한 데이터만 수집
   - 작업 완료 후 자동 종료 기능
+  - 명령줄(CLI) 모드 지원으로 자동화 가능
 
 ## 설치 방법
 
@@ -35,7 +36,7 @@ K-APT 크롤러는 [한국 공동주택관리정보시스템(K-APT)](https://www
 
 1. 이 저장소를 클론합니다:
    ```bash
-   git clone https://github.com/yourusername/kapt_crawler.git
+   git clone https://github.com/TaeyanG4/kapt_crawler.git
    cd kapt_crawler
    ```
 
@@ -62,7 +63,7 @@ K-APT 크롤러는 [한국 공동주택관리정보시스템(K-APT)](https://www
 
 ## 사용 방법
 
-### 기본 사용법
+### GUI 모드 기본 사용법
 
 1. **크롤링 기본 설정**
    - 크롤링할 URL을 입력합니다. (빈 칸이면 기본 URL 사용)
@@ -86,6 +87,57 @@ K-APT 크롤러는 [한국 공동주택관리정보시스템(K-APT)](https://www
    - 설정이 완료되면 "크롤링 시작" 버튼을 클릭합니다.
    - 진행 상황은 로그 창에 실시간으로 표시됩니다.
 
+### 명령줄(CLI) 모드 사용법
+
+프로그램을 명령줄에서 다음과 같이 사용할 수 있습니다:
+
+```bash
+# GUI 모드로 실행
+python main.py
+
+# 도움말 표시
+python main.py help
+
+# 설정 파일을 사용하여 CLI 모드로 크롤링 실행
+python main.py 설정파일.json
+```
+
+또는 exe 파일을 사용하는 경우:
+
+```bash
+# GUI 모드로 실행
+kapt_crawler.exe
+
+# 도움말 표시
+kapt_crawler.exe help
+
+# 설정 파일을 사용하여 CLI 모드로 크롤링 실행
+kapt_crawler.exe 설정파일.json
+```
+
+#### JSON 설정 파일 구조
+
+CLI 모드에서는 다음 형식의 JSON 설정 파일을 사용합니다:
+
+```json
+{
+  "url": "https://www.k-apt.go.kr/...",
+  "extraction_count": 50,
+  "mode": 1,
+  "page_type_index": 0,
+  "selected_excel_path": "",
+  "selected_detail_columns": ["단지명", "계약업체", "계약명", "...]
+}
+```
+
+설정 항목 설명:
+- `url`: 크롤링할 URL (빈 문자열이면 기본 URL 사용)
+- `extraction_count`: 추출할 데이터 건수
+- `mode`: 크롤링 모드 (1: 전체+상세, 2: 전체만, 3: 상세정보만)
+- `page_type_index`: 페이지 유형 (0: 수의계약, 1: 경쟁입찰, 2: 입찰공고)
+- `selected_excel_path`: 기존 엑셀 파일 경로 (모드 3에서 사용)
+- `selected_detail_columns`: 수집할 상세 컬럼 목록
+
 ### 고급 사용법
 
 #### 설정 저장 및 불러오기
@@ -104,6 +156,11 @@ K-APT 크롤러는 [한국 공동주택관리정보시스템(K-APT)](https://www
 
 - "설정" 메뉴에서 "크롤링 완료 후 자동 종료" 옵션을 활성화하면, 작업이 끝난 후 프로그램이 자동으로 종료됩니다.
 - 배치 작업을 자동화할 때 유용한 기능입니다.
+
+#### 자동화 팁
+
+- 윈도우 작업 스케줄러와 CLI 모드를 조합하여 정기적인 크롤링 작업을 자동화할 수 있습니다.
+- 예: `kapt_crawler.exe C:\settings\daily_crawl.json`을 작업 스케줄러에 등록
 
 ## 출력 결과
 
@@ -127,9 +184,13 @@ K-APT 크롤러는 [한국 공동주택관리정보시스템(K-APT)](https://www
    - 로그 창에서 진행 상황을 확인하세요.
    - 크롤링 갯수를 줄이고 다시 시도해보세요.
 
+4. **CLI 모드 오류**
+   - JSON 파일 형식이 올바른지 확인하세요.
+   - 경로나 파일명에 공백이나 특수문자가 있으면 따옴표로 감싸세요.
+
 ## 라이선스
 
-이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
+이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 LICENSE 파일을 참조하세요.
 
 ## 면책 조항
 
