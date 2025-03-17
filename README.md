@@ -28,7 +28,7 @@ K-APT 크롤러는 [한국 공동주택관리정보시스템(K-APT)](https://www
 
 ### 방법 1: 실행 파일 다운로드 (권장)
 
-1. [GitHub Releases](https://github.com/yourusername/kapt_crawler/releases)에서 최신 버전의 exe 파일을 다운로드합니다.
+1. [GitHub Releases](https://github.com/TaeyanG4/kapt_crawler/releases)에서 최신 버전의 exe 파일을 다운로드합니다.
 2. 다운로드한 `kapt_crawler.exe` 파일을 실행합니다.
 
 ### 방법 2: 소스코드로 실행
