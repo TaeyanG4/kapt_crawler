@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+from ui import run_app
 
 def main():
     if len(sys.argv) > 1:
@@ -52,7 +53,6 @@ def main():
             print("크롤링 결과:", result)
             sys.exit(0)
     # 인자가 없으면 기본적으로 GUI 모드 실행
-    from ui import run_app
     run_app()
 
 if __name__ == "__main__":
