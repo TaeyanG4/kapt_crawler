@@ -8,7 +8,6 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt5.QtGui import QTextCursor
 from worker import CrawlerWorker, MultiCrawlerWorker
-from worker import CrawlerWorker
 
 def read_json_with_encoding(file_path):
     """다양한 인코딩으로 JSON 파일을 읽는 함수"""
