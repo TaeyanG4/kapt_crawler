@@ -74,33 +74,16 @@ class CrawlerWorker:
                 return False
 
     def run(self):
-        results = {}
-        json_files = [os.path.join(self.folder_path, f) for f in os.listdir(self.folder_path) if f.endswith('.json')]
-        if not json_files:
-            self._log("선택한 폴더에 JSON 파일이 없습니다.")
-            self.finished_signal.emit("실행된 크롤링 없음")
-            return
-        for json_file in json_files:
-            try:
-                settings = read_json_with_encoding(json_file)
-            except Exception as e:
-                self._log(f"파일 {json_file} 읽기 실패: {e}")
-                continue
-            self._log(f"설정 파일 처리 중: {os.path.basename(json_file)}")
-            mode = settings.get("mode", 1)
-            url_text = settings.get("url", "")
-            excel_path = settings.get("selected_excel_path", "")
-            selected_columns = settings.get("selected_detail_columns", [])
-            extraction_count = settings.get("extraction_count", 50)
-            page_type_index = settings.get("page_type_index", 0)
-            worker = CrawlerWorker(mode, url_text, excel_path, selected_columns, extraction_count, page_type_index, log_callback=self._log)
-            try:
-                result = worker.run()
-                self._log(f"크롤링 완료 ({os.path.basename(json_file)}): 결과 파일 -> {result}")
-                results[os.path.basename(json_file)] = result
-            except Exception as e:
-                self._log(f"크롤링 실패 ({os.path.basename(json_file)}): {e}")
-        self.finished_signal.emit("모든 크롤링 작업 완료")
+        # 모드에 따라 적절한 메서드 호출
+        if self.mode == 1:
+            return self._run_summary_plus_detail()
+        elif self.mode == 2:
+            return self._run_summary_only()
+        elif self.mode == 3:
+            return self._run_detail_only()
+        else:
+            self._log(f"지원되지 않는 모드: {self.mode}")
+            raise ValueError(f"지원되지 않는 모드: {self.mode}")
 
     def _run_summary_plus_detail(self):
         final_url = self._get_final_url()
@@ -164,7 +147,6 @@ class MultiCrawlerWorker(QObject):
         self.log_signal.emit(msg)
 
     def run(self):
-        import json, os
         results = {}
         json_files = [os.path.join(self.folder_path, f) for f in os.listdir(self.folder_path) if f.endswith('.json')]
         if not json_files:
@@ -173,8 +155,7 @@ class MultiCrawlerWorker(QObject):
             return
         for json_file in json_files:
             try:
-                with open(json_file, 'r', encoding='utf-8') as f:
-                    settings = json.load(f)
+                settings = read_json_with_encoding(json_file)
             except Exception as e:
                 self._log(f"파일 {json_file} 읽기 실패: {e}")
                 continue
