@@ -34,18 +34,18 @@ K-APT 크롤러는 [한국 공동주택관리정보시스템(K-APT)](https://www
 
 ### 방법 2: 소스코드로 실행
 
-1. 이 저장소를 클론합니다:
+1. 이 저장소를 클론합니다.
    ```bash
    git clone https://github.com/TaeyanG4/kapt_crawler.git
    cd kapt_crawler
    ```
 
-2. 필요한 패키지를 설치합니다:
+2. 필요한 패키지를 설치합니다(파이썬 버젼: Python 3.10.16).
    ```bash
    pip install -r requirements.txt
    ```
 
-3. 프로그램을 실행합니다:
+3. 프로그램을 실행합니다.
    ```bash
    python main.py
    ```
