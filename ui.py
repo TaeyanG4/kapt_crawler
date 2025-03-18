@@ -1,3 +1,4 @@
+# ui.py
 import os
 import json
 import sys
@@ -5,7 +6,8 @@ from datetime import datetime
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTextEdit, QRadioButton, QButtonGroup,
-    QFileDialog, QCheckBox, QGroupBox, QGridLayout, QMessageBox, QComboBox, QSpinBox, QFormLayout, QDialog
+    QFileDialog, QCheckBox, QGroupBox, QGridLayout, QMessageBox, QComboBox, QSpinBox,
+    QFormLayout, QDialog, QProgressBar
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt5.QtGui import QTextCursor
@@ -13,9 +15,6 @@ from worker import CrawlerWorker, MultiCrawlerWorker
 from utils import read_json_with_encoding
 
 class WorkerWrapper(QObject):
-    """
-    UI와 크롤러 실행을 연결하는 Wrapper.
-    """
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(str)
     
@@ -47,20 +46,18 @@ class MainWindow(QMainWindow):
         self.worker_wrapper = None
         self.selected_excel_path = ""
 
-        # 모드 변경시 UI 활성화 상태 업데이트
         self.radio_summary_detail.toggled.connect(self.update_ui_state)
         self.radio_summary_only.toggled.connect(self.update_ui_state)
         self.radio_detail_only.toggled.connect(self.update_ui_state)
         self.update_ui_state()
 
-        # 기본 설정 자동 로드
         default_settings_path = os.path.join("favorites", "default.json")
         if os.path.exists(default_settings_path):
             try:
                 settings = read_json_with_encoding(default_settings_path)
                 self.apply_settings(settings)
             except Exception as e:
-                self.log("기본 설정 불러오기 실패: " + str(e))
+                self.log("Failed to load default settings: " + str(e))
 
     def _create_menubar(self):
         menubar = self.menuBar()
@@ -77,7 +74,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(main_widget)
         self.main_layout = QVBoxLayout(main_widget)
 
-        # 각 UI 그룹 생성
         self._create_crawl_settings_group()
         self._create_mode_selection_group()
         self._create_page_type_group()
@@ -85,6 +81,7 @@ class MainWindow(QMainWindow):
         self._create_detail_selection_group()
         self._create_settings_buttons()
         self._create_folder_crawling_button()
+        self._create_progress_bar()
         self._create_log_view()
         self._create_run_button()
 
@@ -169,6 +166,12 @@ class MainWindow(QMainWindow):
         self.folder_crawl_button.clicked.connect(self.run_folder_crawling)
         self.main_layout.addWidget(self.folder_crawl_button)
 
+    def _create_progress_bar(self):
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 0)  # 처리 중에는 진행률 미정으로 표시
+        self.progress_bar.setVisible(False)
+        self.main_layout.addWidget(self.progress_bar)
+
     def _create_log_view(self):
         self.log_edit = QTextEdit()
         self.log_edit.setReadOnly(True)
@@ -197,10 +200,7 @@ class MainWindow(QMainWindow):
             self.radio_detail_only.setChecked(True)
         self.page_type_combo.setCurrentIndex(settings.get("page_type_index", 0))
         self.selected_excel_path = settings.get("selected_excel_path", "")
-        if self.selected_excel_path:
-            self.file_label.setText(os.path.basename(self.selected_excel_path))
-        else:
-            self.file_label.setText("(선택된 엑셀 파일 없음)")
+        self.file_label.setText(os.path.basename(self.selected_excel_path) if self.selected_excel_path else "(선택된 엑셀 파일 없음)")
         self.update_detail_checkboxes()
         stored_cols = settings.get("selected_detail_columns", [])
         for cb in self.checkboxes:
@@ -232,14 +232,12 @@ class MainWindow(QMainWindow):
             ]
             unchecked = {'내용', '현장설명장소', '신용평가등급확인서 제출여부', '긴급입찰여부', '현장설명일시'}
 
-        # 기존 위젯 제거
         for i in reversed(range(self.detail_grid.count())):
             widget = self.detail_grid.itemAt(i).widget()
             if widget is not None:
                 widget.setParent(None)
         self.checkboxes = []
         self.detail_columns = columns
-
         for i, col in enumerate(columns):
             cb = QCheckBox(col)
             if self.page_type_combo.currentIndex() == 0:
@@ -295,6 +293,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "안내", "이미 크롤링 작업이 진행 중입니다.")
             return
 
+        self.progress_bar.setVisible(True)
         self.thread = QThread(self)
         self.worker_wrapper = WorkerWrapper(mode_id, url_text, excel_path, selected_cols, extraction_count, page_type_index)
         self.worker_wrapper.moveToThread(self.thread)
@@ -305,6 +304,7 @@ class MainWindow(QMainWindow):
         self.thread.start()
 
     def on_crawl_finished(self, result: str) -> None:
+        self.progress_bar.setVisible(False)
         if result.startswith("ERROR:"):
             QMessageBox.warning(self, "에러 발생", result)
         else:
@@ -365,10 +365,9 @@ class MainWindow(QMainWindow):
         btn_box.addWidget(ok_button)
         btn_box.addWidget(cancel_button)
         layout.addLayout(btn_box)
-        ok_button.clicked.connect(lambda: dialog.accept())
-        cancel_button.clicked.connect(lambda: dialog.reject())
-        result = dialog.exec_()
-        if result == QDialog.Accepted:
+        ok_button.clicked.connect(dialog.accept)
+        cancel_button.clicked.connect(dialog.reject)
+        if dialog.exec_() == QDialog.Accepted:
             self.auto_exit = auto_exit_checkbox.isChecked()
             QMessageBox.information(self, "설정", f"설정이 저장되었습니다. 자동 종료: {'활성화' if self.auto_exit else '비활성화'}")
 
