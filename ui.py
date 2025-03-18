@@ -10,6 +10,23 @@ from PyQt5.QtGui import QTextCursor
 from worker import CrawlerWorker, MultiCrawlerWorker
 from worker import CrawlerWorker
 
+def read_json_with_encoding(file_path):
+    """다양한 인코딩으로 JSON 파일을 읽는 함수"""
+    encodings = ['utf-8', 'euc-kr']
+    
+    for encoding in encodings:
+        try:
+            with open(file_path, "r", encoding=encoding) as f:
+                return json.load(f)
+        except UnicodeDecodeError:
+            continue
+        except json.JSONDecodeError as e:
+            print(f"{encoding} 인코딩으로 읽었으나 JSON 파싱 실패: {e}")
+            continue
+    
+    raise ValueError(f"파일을 읽을 수 없습니다. 지원되는 인코딩: {', '.join(encodings)}")
+
+
 class WorkerWrapper(QObject):
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(str)
@@ -158,8 +175,7 @@ class MainWindow(QMainWindow):
         default_settings_path = os.path.join("favorites", "default.json")
         if os.path.exists(default_settings_path):
             try:
-                with open(default_settings_path, "r", encoding="utf-8") as f:
-                    settings = json.load(f)
+                settings = read_json_with_encoding(default_settings_path)
                 self.apply_settings(settings)
             except Exception as e:
                 self.log("기본 설정 불러오기 실패: " + str(e))
@@ -324,8 +340,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "설정 불러오기", "선택된 설정 파일이 없습니다.")
             return
         try:
-            with open(fname, "r", encoding="utf-8") as f:
-                settings = json.load(f)
+            settings = read_json_with_encoding(fname)
         except Exception as e:
             QMessageBox.warning(self, "설정 불러오기 실패", str(e))
             return

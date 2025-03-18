@@ -3,6 +3,22 @@ import os
 import json
 from ui import run_app
 
+def read_json_with_encoding(file_path):
+    """다양한 인코딩으로 JSON 파일을 읽는 함수"""
+    encodings = ['utf-8', 'euc-kr']
+    
+    for encoding in encodings:
+        try:
+            with open(file_path, "r", encoding=encoding) as f:
+                return json.load(f)
+        except UnicodeDecodeError:
+            continue
+        except json.JSONDecodeError as e:
+            print(f"{encoding} 인코딩으로 읽었으나 JSON 파싱 실패: {e}")
+            continue
+    
+    raise ValueError(f"파일을 읽을 수 없습니다. 지원되는 인코딩: {', '.join(encodings)}")
+
 def main():
     if len(sys.argv) > 1:
         arg = sys.argv[1]
@@ -30,8 +46,7 @@ def main():
                 print(f"설정 파일이 존재하지 않습니다: {json_file}")
                 sys.exit(1)
             try:
-                with open(json_file, "r", encoding="utf-8") as f:
-                    settings = json.load(f)
+                settings = read_json_with_encoding(json_file)
             except Exception as e:
                 print(f"설정 파일 읽기 실패: {e}")
                 sys.exit(1)

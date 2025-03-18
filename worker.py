@@ -1,8 +1,24 @@
-import os
+import os, json
 from crawler import SummaryCrawler, DetailCrawler
 from excel_handler import make_unique_filename, save_to_excel, crawl_detail_info_from_excel
 from urllib.parse import urlparse, parse_qs
 from PyQt5.QtCore import QObject, pyqtSignal
+
+def read_json_with_encoding(file_path):
+    """다양한 인코딩으로 JSON 파일을 읽는 함수"""
+    encodings = ['utf-8', 'euc-kr']
+    
+    for encoding in encodings:
+        try:
+            with open(file_path, "r", encoding=encoding) as f:
+                return json.load(f)
+        except UnicodeDecodeError:
+            continue
+        except json.JSONDecodeError as e:
+            print(f"{encoding} 인코딩으로 읽었으나 JSON 파싱 실패: {e}")
+            continue
+    
+    raise ValueError(f"파일을 읽을 수 없습니다. 지원되는 인코딩: {', '.join(encodings)}")
 
 class CrawlerWorker:
     def __init__(self, mode, url_text, excel_path, selected_columns, extraction_count, page_type_index=0, log_callback=None):
@@ -58,12 +74,33 @@ class CrawlerWorker:
                 return False
 
     def run(self):
-        if self.mode == 1:
-            return self._run_summary_plus_detail()
-        elif self.mode == 2:
-            return self._run_summary_only()
-        else:
-            return self._run_detail_only()
+        results = {}
+        json_files = [os.path.join(self.folder_path, f) for f in os.listdir(self.folder_path) if f.endswith('.json')]
+        if not json_files:
+            self._log("선택한 폴더에 JSON 파일이 없습니다.")
+            self.finished_signal.emit("실행된 크롤링 없음")
+            return
+        for json_file in json_files:
+            try:
+                settings = read_json_with_encoding(json_file)
+            except Exception as e:
+                self._log(f"파일 {json_file} 읽기 실패: {e}")
+                continue
+            self._log(f"설정 파일 처리 중: {os.path.basename(json_file)}")
+            mode = settings.get("mode", 1)
+            url_text = settings.get("url", "")
+            excel_path = settings.get("selected_excel_path", "")
+            selected_columns = settings.get("selected_detail_columns", [])
+            extraction_count = settings.get("extraction_count", 50)
+            page_type_index = settings.get("page_type_index", 0)
+            worker = CrawlerWorker(mode, url_text, excel_path, selected_columns, extraction_count, page_type_index, log_callback=self._log)
+            try:
+                result = worker.run()
+                self._log(f"크롤링 완료 ({os.path.basename(json_file)}): 결과 파일 -> {result}")
+                results[os.path.basename(json_file)] = result
+            except Exception as e:
+                self._log(f"크롤링 실패 ({os.path.basename(json_file)}): {e}")
+        self.finished_signal.emit("모든 크롤링 작업 완료")
 
     def _run_summary_plus_detail(self):
         final_url = self._get_final_url()
