@@ -1,4 +1,6 @@
-import os, json, sys
+import os
+import json
+import sys
 from datetime import datetime
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -8,34 +10,23 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt5.QtGui import QTextCursor
 from worker import CrawlerWorker, MultiCrawlerWorker
-
-def read_json_with_encoding(file_path):
-    """다양한 인코딩으로 JSON 파일을 읽는 함수"""
-    encodings = ['utf-8', 'euc-kr']
-    
-    for encoding in encodings:
-        try:
-            with open(file_path, "r", encoding=encoding) as f:
-                return json.load(f)
-        except UnicodeDecodeError:
-            continue
-        except json.JSONDecodeError as e:
-            print(f"{encoding} 인코딩으로 읽었으나 JSON 파싱 실패: {e}")
-            continue
-    
-    raise ValueError(f"파일을 읽을 수 없습니다. 지원되는 인코딩: {', '.join(encodings)}")
-
+from utils import read_json_with_encoding
 
 class WorkerWrapper(QObject):
+    """
+    UI와 크롤러 실행을 연결하는 Wrapper.
+    """
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(str)
     
-    def __init__(self, mode, url_text, excel_path, selected_columns, extraction_count, page_type_index=0):
+    def __init__(self, mode: int, url_text: str, excel_path: str,
+                 selected_columns: list, extraction_count: int, page_type_index: int = 0):
         super().__init__()
-        self.worker = CrawlerWorker(mode, url_text, excel_path, selected_columns, extraction_count, page_type_index)
+        self.worker = CrawlerWorker(mode, url_text, excel_path, selected_columns,
+                                    extraction_count, page_type_index)
         self.worker.log_callback = self.log_signal.emit
 
-    def run(self):
+    def run(self) -> None:
         try:
             result = self.worker.run()
             self.finished_signal.emit(result)
@@ -49,6 +40,29 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 900, 700)
         self.auto_exit = False
 
+        self._create_menubar()
+        self._create_main_layout()
+
+        self.thread = None
+        self.worker_wrapper = None
+        self.selected_excel_path = ""
+
+        # 모드 변경시 UI 활성화 상태 업데이트
+        self.radio_summary_detail.toggled.connect(self.update_ui_state)
+        self.radio_summary_only.toggled.connect(self.update_ui_state)
+        self.radio_detail_only.toggled.connect(self.update_ui_state)
+        self.update_ui_state()
+
+        # 기본 설정 자동 로드
+        default_settings_path = os.path.join("favorites", "default.json")
+        if os.path.exists(default_settings_path):
+            try:
+                settings = read_json_with_encoding(default_settings_path)
+                self.apply_settings(settings)
+            except Exception as e:
+                self.log("기본 설정 불러오기 실패: " + str(e))
+
+    def _create_menubar(self):
         menubar = self.menuBar()
         help_menu = menubar.addMenu("도움말")
         help_action = help_menu.addAction("도움말")
@@ -58,28 +72,40 @@ class MainWindow(QMainWindow):
         settings_action = settings_menu.addAction("설정")
         settings_action.triggered.connect(self.show_settings_dialog)
 
+    def _create_main_layout(self):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
-        main_layout = QVBoxLayout()
-        main_widget.setLayout(main_layout)
+        self.main_layout = QVBoxLayout(main_widget)
 
-        # 크롤링 기본 설정 그룹
-        crawl_setting_group = QGroupBox("크롤링 기본 설정")
-        crawl_setting_layout = QFormLayout()
-        crawl_setting_group.setLayout(crawl_setting_layout)
+        # 각 UI 그룹 생성
+        self._create_crawl_settings_group()
+        self._create_mode_selection_group()
+        self._create_page_type_group()
+        self._create_file_selection_group()
+        self._create_detail_selection_group()
+        self._create_settings_buttons()
+        self._create_folder_crawling_button()
+        self._create_log_view()
+        self._create_run_button()
+
+    def _create_crawl_settings_group(self):
+        self.crawl_setting_group = QGroupBox("크롤링 기본 설정")
+        layout = QFormLayout()
+        self.crawl_setting_group.setLayout(layout)
         self.url_edit = QLineEdit()
         self.url_edit.setPlaceholderText("크롤링할 URL을 입력하세요. (빈 칸이면 기본 URL 사용)")
         self.count_spin = QSpinBox()
         self.count_spin.setMinimum(1)
         self.count_spin.setMaximum(10000)
         self.count_spin.setValue(50)
-        crawl_setting_layout.addRow("크롤링할 URL:", self.url_edit)
-        crawl_setting_layout.addRow("추출 갯수:", self.count_spin)
+        layout.addRow("크롤링할 URL:", self.url_edit)
+        layout.addRow("추출 갯수:", self.count_spin)
+        self.main_layout.addWidget(self.crawl_setting_group)
 
-        # 모드 선택 그룹
-        mode_group = QGroupBox("크롤링 모드 선택")
-        mode_layout = QHBoxLayout()
-        mode_group.setLayout(mode_layout)
+    def _create_mode_selection_group(self):
+        self.mode_group = QGroupBox("크롤링 모드 선택")
+        layout = QHBoxLayout()
+        self.mode_group.setLayout(layout)
         self.radio_group = QButtonGroup(self)
         self.radio_summary_detail = QRadioButton("전체 페이지 + 상세정보 크롤링")
         self.radio_summary_only = QRadioButton("전체 페이지만 크롤링")
@@ -88,14 +114,15 @@ class MainWindow(QMainWindow):
         self.radio_group.addButton(self.radio_summary_only, 2)
         self.radio_group.addButton(self.radio_detail_only, 3)
         self.radio_summary_detail.setChecked(True)
-        mode_layout.addWidget(self.radio_summary_detail)
-        mode_layout.addWidget(self.radio_summary_only)
-        mode_layout.addWidget(self.radio_detail_only)
+        layout.addWidget(self.radio_summary_detail)
+        layout.addWidget(self.radio_summary_only)
+        layout.addWidget(self.radio_detail_only)
+        self.main_layout.addWidget(self.mode_group)
 
-        # 페이지 유형 선택 그룹
-        page_type_groupbox = QGroupBox("크롤링할 페이지 유형 선택")
-        page_type_layout = QHBoxLayout()
-        page_type_groupbox.setLayout(page_type_layout)
+    def _create_page_type_group(self):
+        self.page_type_groupbox = QGroupBox("크롤링할 페이지 유형 선택")
+        layout = QHBoxLayout()
+        self.page_type_groupbox.setLayout(layout)
         self.page_type_combo = QComboBox()
         self.page_type_combo.addItems([
             "사업자 선정(수의계약) 결과 공개",
@@ -103,83 +130,62 @@ class MainWindow(QMainWindow):
             "전국 입찰공고"
         ])
         self.page_type_combo.setCurrentIndex(0)
-        page_type_layout.addWidget(self.page_type_combo)
         self.page_type_combo.currentIndexChanged.connect(self.update_detail_checkboxes)
+        layout.addWidget(self.page_type_combo)
+        self.main_layout.addWidget(self.page_type_groupbox)
 
-        # 엑셀 파일 선택 그룹
-        file_group = QGroupBox("엑셀 파일 선택 (상세정보 크롤링 모드에서 사용)")
-        file_layout = QHBoxLayout()
-        file_group.setLayout(file_layout)
+    def _create_file_selection_group(self):
+        self.file_group = QGroupBox("엑셀 파일 선택 (상세정보 크롤링 모드에서 사용)")
+        layout = QHBoxLayout()
+        self.file_group.setLayout(layout)
         self.file_label = QLabel("(선택된 엑셀 파일 없음)")
         self.file_button = QPushButton("엑셀 파일 선택")
         self.file_button.clicked.connect(self.select_excel_file)
-        file_layout.addWidget(self.file_button)
-        file_layout.addWidget(self.file_label)
+        layout.addWidget(self.file_button)
+        layout.addWidget(self.file_label)
+        self.main_layout.addWidget(self.file_group)
 
-        # 상세 컬럼 선택 그룹
+    def _create_detail_selection_group(self):
         self.detail_groupbox = QGroupBox("상세 컬럼 선택")
         self.detail_grid = QGridLayout()
         self.detail_groupbox.setLayout(self.detail_grid)
         self.checkboxes = []
         self.detail_columns = []
         self.update_detail_checkboxes()
+        self.main_layout.addWidget(self.detail_groupbox)
 
-        # 설정 저장/불러오기 버튼
-        settings_layout = QHBoxLayout()
+    def _create_settings_buttons(self):
+        layout = QHBoxLayout()
         self.save_button = QPushButton("설정 저장")
         self.save_button.clicked.connect(self.save_favorites)
         self.load_button = QPushButton("설정 불러오기")
         self.load_button.clicked.connect(self.load_favorites)
-        settings_layout.addWidget(self.save_button)
-        settings_layout.addWidget(self.load_button)
-        
-        # 새롭게 추가된 "폴더 설정 크롤링 실행" 버튼
+        layout.addWidget(self.save_button)
+        layout.addWidget(self.load_button)
+        self.main_layout.addLayout(layout)
+
+    def _create_folder_crawling_button(self):
         self.folder_crawl_button = QPushButton("폴더 설정 크롤링 실행")
         self.folder_crawl_button.clicked.connect(self.run_folder_crawling)
+        self.main_layout.addWidget(self.folder_crawl_button)
 
-        # 로그 출력창
+    def _create_log_view(self):
         self.log_edit = QTextEdit()
         self.log_edit.setReadOnly(True)
         self.log_edit.setStyleSheet("background-color: #F0F0F0;")
+        self.main_layout.addWidget(self.log_edit)
 
-        # 크롤링 시작 버튼
+    def _create_run_button(self):
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
         self.run_button = QPushButton("크롤링 시작")
         self.run_button.setStyleSheet("font-size: 18pt; font-weight: bold;")
         self.run_button.clicked.connect(self.on_run_clicked)
-
-        # 레이아웃 구성
-        main_layout.addWidget(crawl_setting_group)
-        main_layout.addWidget(mode_group)
-        main_layout.addWidget(page_type_groupbox)
-        main_layout.addWidget(file_group)
-        main_layout.addWidget(self.detail_groupbox)
-        main_layout.addLayout(settings_layout)
-        # 폴더 크롤링 버튼 추가
-        main_layout.addWidget(self.folder_crawl_button)
-        main_layout.addWidget(self.log_edit)
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
         button_layout.addWidget(self.run_button)
         button_layout.addStretch()
-        main_layout.addLayout(button_layout)
+        self.main_layout.addLayout(button_layout)
 
-        self.thread = None
-        self.worker_wrapper = None
-        self.selected_excel_path = ""
-        self.radio_summary_detail.toggled.connect(self.update_ui_state)
-        self.radio_summary_only.toggled.connect(self.update_ui_state)
-        self.radio_detail_only.toggled.connect(self.update_ui_state)
-        self.update_ui_state()
-
-        default_settings_path = os.path.join("favorites", "default.json")
-        if os.path.exists(default_settings_path):
-            try:
-                settings = read_json_with_encoding(default_settings_path)
-                self.apply_settings(settings)
-            except Exception as e:
-                self.log("기본 설정 불러오기 실패: " + str(e))
-
-    def apply_settings(self, settings):
+    def apply_settings(self, settings: dict) -> None:
         self.url_edit.setText(settings.get("url", ""))
         self.count_spin.setValue(settings.get("extraction_count", 50))
         mode = settings.get("mode", 1)
@@ -201,7 +207,7 @@ class MainWindow(QMainWindow):
             cb.setChecked(cb.text() in stored_cols)
         self.auto_exit = settings.get("auto_exit", False)
 
-    def update_detail_checkboxes(self):
+    def update_detail_checkboxes(self) -> None:
         page_type_index = self.page_type_combo.currentIndex()
         if page_type_index == 0:
             columns = [
@@ -245,7 +251,7 @@ class MainWindow(QMainWindow):
             col_pos = i % 4
             self.detail_grid.addWidget(cb, row_pos, col_pos)
 
-    def select_excel_file(self):
+    def select_excel_file(self) -> None:
         fname, _ = QFileDialog.getOpenFileName(self, "엑셀 파일 선택", "", "Excel Files (*.xlsx *.xls)")
         if fname:
             self.file_label.setText(os.path.basename(fname))
@@ -254,7 +260,7 @@ class MainWindow(QMainWindow):
             self.file_label.setText("(선택된 엑셀 파일 없음)")
             self.selected_excel_path = ""
 
-    def update_ui_state(self):
+    def update_ui_state(self) -> None:
         mode_id = self.radio_group.checkedId()
         if mode_id == 1:
             self.url_edit.setEnabled(True)
@@ -272,12 +278,12 @@ class MainWindow(QMainWindow):
             for cb in self.checkboxes:
                 cb.setEnabled(True)
 
-    def log(self, msg):
+    def log(self, msg: str) -> None:
         self.log_edit.append(msg)
         self.log_edit.moveCursor(QTextCursor.End)
         QApplication.processEvents()
 
-    def on_run_clicked(self):
+    def on_run_clicked(self) -> None:
         mode_id = self.radio_group.checkedId()
         url_text = self.url_edit.text().strip()
         excel_path = self.selected_excel_path
@@ -298,7 +304,7 @@ class MainWindow(QMainWindow):
         self.worker_wrapper.finished_signal.connect(self.thread.quit)
         self.thread.start()
 
-    def on_crawl_finished(self, result):
+    def on_crawl_finished(self, result: str) -> None:
         if result.startswith("ERROR:"):
             QMessageBox.warning(self, "에러 발생", result)
         else:
@@ -308,7 +314,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.information(self, "작업 완료", f"크롤링이 종료되었습니다.\n결과: {result}")
 
-    def save_favorites(self):
+    def save_favorites(self) -> None:
         settings = {
             "url": self.url_edit.text(),
             "extraction_count": self.count_spin.value(),
@@ -333,7 +339,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, "설정 저장 실패", str(e))
 
-    def load_favorites(self):
+    def load_favorites(self) -> None:
         fname, _ = QFileDialog.getOpenFileName(self, "설정 파일 선택", "favorites", "JSON Files (*.json)")
         if not fname:
             QMessageBox.warning(self, "설정 불러오기", "선택된 설정 파일이 없습니다.")
@@ -346,7 +352,7 @@ class MainWindow(QMainWindow):
         self.apply_settings(settings)
         QMessageBox.information(self, "설정 불러오기", "설정이 불러와졌습니다.")
 
-    def show_settings_dialog(self):
+    def show_settings_dialog(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle("설정")
         layout = QVBoxLayout(dialog)
@@ -366,7 +372,7 @@ class MainWindow(QMainWindow):
             self.auto_exit = auto_exit_checkbox.isChecked()
             QMessageBox.information(self, "설정", f"설정이 저장되었습니다. 자동 종료: {'활성화' if self.auto_exit else '비활성화'}")
 
-    def show_help(self):
+    def show_help(self) -> None:
         help_text = (
             "=== K-APT 크롤러 사용법 ===\n\n"
             "[1] 크롤링 기본 설정\n"
@@ -392,7 +398,7 @@ class MainWindow(QMainWindow):
         )
         QMessageBox.information(self, "도움말", help_text)
     
-    def run_folder_crawling(self):
+    def run_folder_crawling(self) -> None:
         folder_path = QFileDialog.getExistingDirectory(self, "설정 파일 폴더 선택", "")
         if not folder_path:
             QMessageBox.warning(self, "폴더 선택", "폴더를 선택하지 않았습니다.")
@@ -406,14 +412,14 @@ class MainWindow(QMainWindow):
         self.multi_worker.finished_signal.connect(self.multi_thread.quit)
         self.multi_thread.start()
 
-    def on_multi_crawl_finished(self, result):
+    def on_multi_crawl_finished(self, result: str) -> None:
         if self.auto_exit:
             QMessageBox.information(self, "폴더 크롤링 완료", f"{result}\n프로그램을 종료합니다.")
             QApplication.quit()
         else:
             QMessageBox.information(self, "폴더 크롤링 완료", f"{result}")
 
-def run_app():
+def run_app() -> None:
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()

@@ -3,7 +3,10 @@ from datetime import datetime
 import openpyxl
 import pandas as pd
 
-def make_unique_filename(base_name="추출데이터", folder_name="추출데이터"):
+def make_unique_filename(base_name: str = "추출데이터", folder_name: str = "추출데이터") -> str:
+    """
+    유니크한 파일 이름을 생성합니다.
+    """
     os.makedirs(folder_name, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{base_name}_{timestamp}.xlsx"
@@ -19,7 +22,10 @@ def make_unique_filename(base_name="추출데이터", folder_name="추출데이�
             counter += 1
     return full_path
 
-def save_to_excel(data_list, filename, page_type_index=0):
+def save_to_excel(data_list: list, filename: str, page_type_index: int = 0) -> None:
+    """
+    데이터 리스트를 엑셀 파일로 저장합니다.
+    """
     wb = openpyxl.Workbook()
     ws = wb.active
 
@@ -61,7 +67,7 @@ def save_to_excel(data_list, filename, page_type_index=0):
     except Exception as e:
         raise Exception(f"엑셀 파일 저장 실패: {e}")
 
-def generate_output_filename():
+def generate_output_filename() -> str:
     now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_filename = f"추출데이터_상세정보_{now_str}"
     ext = ".xlsx"
@@ -72,8 +78,11 @@ def generate_output_filename():
         counter += 1
     return output_filename
 
-def crawl_detail_info_from_excel(input_excel_path, selected_columns, detail_crawler, log_callback=None, page_type_index=0):
-    def _log(msg):
+def crawl_detail_info_from_excel(input_excel_path: str, selected_columns: list, detail_crawler, log_callback=None, page_type_index: int = 0) -> str:
+    """
+    기존 엑셀 파일을 읽어 상세정보를 크롤링 후 새로운 엑셀 파일로 저장합니다.
+    """
+    def _log(msg: str) -> None:
         if log_callback:
             log_callback(msg)
 
